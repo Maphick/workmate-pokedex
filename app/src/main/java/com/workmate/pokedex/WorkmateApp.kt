@@ -1,4 +1,4 @@
-package ru.kdvm.workmate_pokedex
+package com.workmate.pokedex
 
 import android.app.Application
 import dagger.hilt.android.HiltAndroidApp

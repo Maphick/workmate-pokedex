@@ -7,10 +7,10 @@
 ## Архитектура
 - **Offline‑first**: UI **всегда** читает из Room (единый источник истины).
 - При наличии интернета данные синхронизируются из PokeAPI в локальную БД, поэтому
-  поиск/фильтры/пагинация работают одинаково и **офлайн не ломаются**.
-- **Paging 3 + RemoteMediator** отвечает за подкачку страниц из сети → Room.
+  поиск/фильтры/пагинация работают одинаково и в оффлайн-режиме не ломаются.
+- **Paging 3 + RemoteMediator** отвечает за подкачку страниц из сети в Room.
 - Однократный **bootstrap** загружает полный индекс имён (`/pokemon?limit=2000`) и связи
-  Pokémon↔Type (`/type/{name}`) — это даёт полноценный офлайн‑поиск и офлайн‑фильтры.
+  Pokémon ↔ Type (`/type/{name}`) — это даёт полноценный оффлайн‑поиск и оффлайн‑фильтры.
 
 
 ## Стек
@@ -19,14 +19,14 @@ Kotlin, Jetpack Compose, Navigation, Paging 3, Room, Retrofit+Moshi, OkHttp, Hil
 
 
 ## Сборка
-- Android Studio Koala/IgUana, JDK 17
-- `minSdk=26`, `targetSdk=34`
+- Android Studio Meerkat Feature Drop, JDK 23.0.1
+- `minSdk=24`, `targetSdk=35`
 - Запуск: **Run** `MainActivity`
 
 
 ## Фичи
 - Грид 2 колонки (картинка + имя)
-- Поиск и фильтры **офлайн**
+- Поиск и фильтры оaфлайн
 - Pull‑to‑Refresh, индикаторы загрузки/empty, back‑navigation
 
 

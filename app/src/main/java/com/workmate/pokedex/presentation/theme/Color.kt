@@ -1,4 +1,4 @@
-package ru.kdvm.workmate_pokedex.presentation.theme
+package com.workmate.pokedex.presentation.theme
 
 import androidx.compose.ui.graphics.Color
 

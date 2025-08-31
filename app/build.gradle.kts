@@ -67,16 +67,32 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.converter.moshi)
     implementation(libs.moshi)
+    implementation(libs.moshi.kotlin)
+    // опционально, если ставить @JsonClass(generateAdapter = true) на DTO
+    // kapt(libs.moshi.codegen)
+
     implementation(libs.okhttp.logging)
 
     // Hilt
     implementation(libs.hilt.android)
+    implementation(libs.androidx.hilt.navigation.compose)
     kapt(libs.hilt.compiler)
 
     // DataStore, Coil, WorkManager
     implementation(libs.datastore.preferences)
     implementation(libs.coil.compose)
     implementation(libs.androidx.work.runtime)
+
+    // deps:
+    implementation("androidx.compose.material:material-icons-extended")
+
+    // icons:
+    implementation(libs.androidx.material.icons.extended)
+
+    implementation(libs.androidx.paging.compose)
+
+    // Выровнять версию JavaPoet на kapt-класспате
+    kapt(libs.javapoet)
 
     // Tests
     testImplementation(libs.junit)
