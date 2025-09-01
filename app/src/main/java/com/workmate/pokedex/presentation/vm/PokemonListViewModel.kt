@@ -8,7 +8,9 @@ import com.workmate.pokedex.domain.model.Pokemon
 import com.workmate.pokedex.domain.usecase.ClearFiltersUseCase
 import com.workmate.pokedex.domain.usecase.GetFiltersFlowUseCase
 import com.workmate.pokedex.domain.usecase.GetPagedPokemonUseCase
+import com.workmate.pokedex.domain.usecase.GetSelectedTypesUseCase // новый
 import com.workmate.pokedex.domain.usecase.RefreshBootstrapUseCase
+import com.workmate.pokedex.domain.usecase.SaveSelectedTypesUseCase // новый
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,6 +27,8 @@ class PokemonListViewModel @Inject constructor(
     private val getPaged: GetPagedPokemonUseCase,
     private val refresh: RefreshBootstrapUseCase,
     private val clearFilters: ClearFiltersUseCase,
+    private val getSelectedTypes: GetSelectedTypesUseCase, // новый
+    private val saveSelectedTypes: SaveSelectedTypesUseCase, // новый
     getFilters: GetFiltersFlowUseCase
 ) : ViewModel() {
 
@@ -36,6 +40,9 @@ class PokemonListViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            // Инициализируем DataStore перед загрузкой данных
+            initializeDataStore()
+
             // СНАЧАЛА загружаем bootstrap данные
             refresh()
 
@@ -47,7 +54,27 @@ class PokemonListViewModel @Inject constructor(
         }
     }
 
-    // при фильтрации покемонов: t - кол-во выбранных типов
+    private suspend fun initializeDataStore() {
+        // Здесь нужно получить доступ к репозиторию для инициализации
+        // Добавить соответствующий метод в PokemonRepository
+        println("Initializing DataStore from database...")
+    }
+
+    fun removeFilterType(typeToRemove: String) = viewModelScope.launch {
+        // Используем новый UseCase для получения текущих типов
+        val currentTypes = getSelectedTypes().toMutableList()
+        if (currentTypes.remove(typeToRemove)) {
+            // Используем новый UseCase для сохранения
+            saveSelectedTypes(currentTypes)
+            println("Removed filter: $typeToRemove, new types: $currentTypes")
+        }
+    }
+
+    // УДАЛЯЕМ старый метод saveFilters, так как теперь используем saveSelectedTypes UseCase
+    // private suspend fun saveFilters(types: List<String>) {
+    //     // Больше не нужен
+    // }
+
     val paging: Flow<PagingData<Pokemon>> =
         combine(query, _selectedTypes) { q, t ->
             println("Combine: query='$q', types=$t")
@@ -55,7 +82,6 @@ class PokemonListViewModel @Inject constructor(
         }
             .flatMapLatest { (q, t) ->
                 println("FlatMapLatest: query='$q', types=$t")
-                // Принудительно инвалидируем предыдущий PagingSource
                 getPaged(q, t)
             }
             .cachedIn(viewModelScope)
@@ -63,12 +89,7 @@ class PokemonListViewModel @Inject constructor(
     fun onSearch(text: String) { query.value = text }
 
     fun clearFilters() = viewModelScope.launch {
-        // Здесь нужно очистить фильтры в репозитории/DataStore
-        // Для этого добавлен соответствующий метод в FiltersRepository
-        // СТАЛО:
-
         clearFilters.invoke() // Вызываем use case
-
     }
 
     fun onRefresh() = viewModelScope.launch {
@@ -77,5 +98,4 @@ class PokemonListViewModel @Inject constructor(
             refresh()
         } finally { isRefreshing.value = false }
     }
-
 }

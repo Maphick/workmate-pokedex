@@ -1,5 +1,6 @@
 package com.workmate.pokedex.presentation.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -24,7 +25,11 @@ import com.workmate.pokedex.domain.model.Pokemon
 import com.workmate.pokedex.presentation.vm.PokemonListViewModel
 
 @Composable
-private fun ActiveFiltersChip(types: List<String>, onClear: () -> Unit) {
+private fun ActiveFiltersChip(
+    types: List<String>,
+    onRemoveType: (String) -> Unit, // Добавляем callback для удаления типа
+    onClear: () -> Unit
+) {
     if (types.isNotEmpty()) {
         Row(
             Modifier
@@ -37,13 +42,17 @@ private fun ActiveFiltersChip(types: List<String>, onClear: () -> Unit) {
             types.forEach { type ->
                 FilterChip(
                     selected = true,
-                    onClick = { /* Можно сделать удаление отдельного фильтра */ },
+                    onClick = { /* Оставляем пустым или можно сделать выделение */ },
                     label = { Text(type.replaceFirstChar { it.uppercase() }) },
                     trailingIcon = {
                         Icon(
                             Icons.Default.Close,
                             contentDescription = "Удалить фильтр",
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier
+                                .size(16.dp)
+                                .clickable {
+                                    onRemoveType(type) // Обработка клика на крестик
+                                }
                         )
                     },
                     modifier = Modifier.padding(end = 4.dp)
@@ -140,6 +149,10 @@ fun PokemonListScreen(
                 // блок поиска по фильтрам
                 ActiveFiltersChip(
                     types = selectedTypes,
+                    onRemoveType = { typeToRemove ->
+                        // Логика удаления конкретного типа
+                        vm.removeFilterType(typeToRemove)
+                    },
                     onClear = { vm.clearFilters() }
                 )
 
