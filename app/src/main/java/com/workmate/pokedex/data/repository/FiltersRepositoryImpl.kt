@@ -14,6 +14,12 @@ class FiltersRepositoryImpl @Inject constructor(
     override fun selectedTypesFlow(): Flow<List<String>> = ds.selectedTypesFlow
 
     override suspend fun saveSelectedTypes(types: List<String>) {
-        ds.saveSelectedTypes(types) // просто делегируем
+        println("Saving selected types: $types")
+        ds.saveSelectedTypes(types)
+    }
+
+    override suspend fun clearSelectedTypes() {
+        println("Clearing selected types")
+        ds.saveSelectedTypes(emptyList())
     }
 }

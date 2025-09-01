@@ -14,13 +14,15 @@ import androidx.room.Index
             entity = PokemonEntity::class,
             parentColumns = ["id"],
             childColumns = ["pokemonId"],
-            onDelete = ForeignKey.CASCADE
+            onDelete = ForeignKey.CASCADE,
+            deferred = true // ДОБАВЬТЕ ЭТО
         ),
         ForeignKey(
             entity = TypeEntity::class,
             parentColumns = ["id"],
             childColumns = ["typeId"],
-            onDelete = ForeignKey.CASCADE
+            onDelete = ForeignKey.CASCADE,
+            deferred = true // ДОБАВЬТЕ ЭТО
         )
     ],
     indices = [Index("pokemonId"), Index("typeId")]

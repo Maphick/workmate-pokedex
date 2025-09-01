@@ -24,7 +24,60 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface PokemonDao {
 
+    @Query("SELECT COUNT(*) FROM type")
+    suspend fun getTypesCount(): Int
+
+    @Query("SELECT COUNT(*) FROM pokemon_type")
+    suspend fun getCrossRefsCount(): Int
+
+    @Query("DELETE FROM type")
+    suspend fun clearTypes()
+
+
+    // метод для подсчета покемонов
+    @Query("SELECT COUNT(*) FROM pokemon")
+    suspend fun getPokemonCount(): Int
+
+    @Query("SELECT id FROM pokemon WHERE id IN (:ids)")
+    suspend fun existingPokemonIds(ids: List<Int>): List<Int>
+
     // ---- LIST + SEARCH/PAGING ----
+
+    // PokemonDao.kt - два отдельных метода
+    /** Фильтрация по ЛЮБОМУ из выбранных типов (OR) */
+    @RewriteQueriesToDropUnusedColumns
+    @Query("""
+    SELECT DISTINCT p.*
+    FROM pokemon p
+    JOIN pokemon_type pt ON pt.pokemonId = p.id
+    JOIN type t ON t.id = pt.typeId
+    WHERE (:query IS NULL OR :query = '' OR p.name LIKE '%' || :query || '%')
+      AND t.name IN (:types)
+    ORDER BY p.id ASC
+""")
+    fun pagingByNameAndAnyTypes(
+        query: String?,
+        types: List<String>
+    ): PagingSource<Int, PokemonEntity>
+
+    /** Фильтрация по ВСЕМ выбранным типам (AND) */
+    @RewriteQueriesToDropUnusedColumns
+    @Query("""
+    SELECT p.*
+    FROM pokemon p
+    JOIN pokemon_type pt ON pt.pokemonId = p.id
+    JOIN type t ON t.id = pt.typeId
+    WHERE (:query IS NULL OR :query = '' OR p.name LIKE '%' || :query || '%')
+      AND t.name IN (:types)
+    GROUP BY p.id
+    HAVING COUNT(DISTINCT t.name) = :typeCount
+    ORDER BY p.id ASC
+""")
+    fun pagingByNameAndAllTypes(
+        query: String?,
+        types: List<String>,
+        typeCount: Int
+    ): PagingSource<Int, PokemonEntity>
 
     /** Поиск по имени без фильтров типов */
     @Query("""
@@ -37,20 +90,17 @@ interface PokemonDao {
     /** Поиск по имени + отбор по ВСЕМ выбранным типам */
     @RewriteQueriesToDropUnusedColumns
     @Query("""
-        SELECT p.*
-        FROM pokemon p
-        JOIN pokemon_type pt ON pt.pokemonId = p.id
-        JOIN type t ON t.id = pt.typeId
-        WHERE (:query IS NULL OR :query = '' OR p.name LIKE '%' || :query || '%')
-          AND t.name IN (:types)
-        GROUP BY p.id
-        HAVING COUNT(DISTINCT t.name) = :typeCount
-        ORDER BY p.id ASC
-    """)
+    SELECT DISTINCT p.*
+    FROM pokemon p
+    JOIN pokemon_type pt ON pt.pokemonId = p.id
+    JOIN type t ON t.id = pt.typeId
+    WHERE (:query IS NULL OR :query = '' OR p.name LIKE '%' || :query || '%')
+      AND t.name IN (:types)
+    ORDER BY p.id ASC
+""")
     fun pagingByNameAndTypes(
         query: String?,
-        types: List<String>,
-        typeCount: Int
+        types: List<String>
     ): PagingSource<Int, PokemonEntity>
 
     // ---- DETAIL / TYPES ----
@@ -103,9 +153,7 @@ interface PokemonDao {
     @Query("DELETE FROM pokemon_type")
     suspend fun clearCrossRefs()
 
-    /** Вернуть только те id, которые уже есть в таблице pokemon */
-    @Query("SELECT id FROM pokemon WHERE id IN (:ids)")
-    suspend fun existingPokemonIds(ids: List<Int>): List<Int>
+
 
     @Query("""
     INSERT OR REPLACE INTO pokemon_type(pokemonId, typeId)

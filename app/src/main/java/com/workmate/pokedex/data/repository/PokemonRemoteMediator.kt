@@ -25,10 +25,14 @@ class PokemonRemoteMediator(
         loadType: LoadType,
         state: PagingState<Int, PokemonEntity>
     ): MediatorResult = try {
+        println("Loading pokemon data, loadType: $loadType")
         val pageSize = state.config.pageSize
 
         val offset = when (loadType) {
-            LoadType.REFRESH -> 0
+            LoadType.REFRESH -> {
+                // При REFRESH используем offset 0, но НЕ очищаем данные
+                0
+            }
             LoadType.PREPEND -> return MediatorResult.Success(endOfPaginationReached = true)
             LoadType.APPEND -> {
                 val last = state.lastItemOrNull()
@@ -50,18 +54,19 @@ class PokemonRemoteMediator(
         val nextKey = if (end) null else offset + pageSize
 
         db.withTransaction {
-            if (loadType == LoadType.REFRESH) {
-                db.pokemonDao().clearPokemon()
-                db.remoteKeysDao().clearRemoteKeys()
-                db.pokemonDao().clearCrossRefs()
-            }
+            // ТОЛЬКО ДОБАВЛЕНИЕ ДАННЫХ, БЕЗ ОЧИСТКИ!
+            // Используем upsertAll для обновления существующих и добавления новых покемонов
             db.pokemonDao().upsertAll(entities)
+
+            // Обновляем ключи пагинации
             val keys = entities.map { RemoteKeys(pokemonId = it.id, prevKey = prevKey, nextKey = nextKey) }
             db.remoteKeysDao().insertAll(keys)
         }
 
+        println("Loaded ${entities.size} pokemons, offset: $offset, end: $end")
         MediatorResult.Success(endOfPaginationReached = end)
     } catch (e: Exception) {
+        println("Error loading pokemon data: ${e.message}")
         MediatorResult.Error(e)
     }
 }

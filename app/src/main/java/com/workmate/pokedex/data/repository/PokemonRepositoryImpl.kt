@@ -27,16 +27,52 @@ class PokemonRepositoryImpl @Inject constructor(
     private val api: PokeApi
 ) : PokemonRepository {
 
+
+    // очистка таблиц
+    override suspend fun clearAllData() {
+        println("Clearing all data...")
+        try {
+            db.withTransaction {
+                // 1. Очищаем связи
+                db.pokemonDao().clearCrossRefs()
+                println("Cleared cross-refs")
+
+                // 2. Очищаем покемонов
+                db.pokemonDao().clearPokemon()
+                println("Cleared pokemons")
+
+                // 3. Очищаем типы
+                db.pokemonDao().clearTypes()
+                println("Cleared types")
+
+                // 4. Очищаем ключи пагинации
+                db.remoteKeysDao().clearRemoteKeys()
+                println("Cleared remote keys")
+
+                // 5. Очищаем детали (если нужно)
+                // db.pokemonDao().clearDetails()
+            }
+            println("All data cleared successfully")
+        } catch (e: Exception) {
+            println("Error clearing data: ${e.message}")
+            throw e
+        }
+    }
+
     /**
      * Список + поиск + фильтры типов.
      * Если типов нет — простой поиск по имени.
      * Если есть — JOIN по type + HAVING COUNT(DISTINCT) = size (см. Dao.pagingByNameAndTypes).
      */
+
     override fun pagingFlow(query: String?, types: List<String>): Flow<PagingData<Pokemon>> {
         val sourceFactory = if (types.isNullOrEmpty()) {
             { db.pokemonDao().pagingByName(query) }
         } else {
-            { db.pokemonDao().pagingByNameAndTypes(query, types, types.size) }
+            // любой из методов в зависимости от нужной логики:
+            { db.pokemonDao().pagingByNameAndAnyTypes(query, types) } // ЛЮБОЙ тип
+            // ИЛИ:
+            // { db.pokemonDao().pagingByNameAndAllTypes(query, types, types.size) } // ВСЕ типы
         }
 
         return Pager(
@@ -46,51 +82,95 @@ class PokemonRepositoryImpl @Inject constructor(
         ).flow.map { page -> page.map { Pokemon(it.id, it.name, it.imageUrl) } }
     }
 
+
+
     /**
      * Первичная инициализация кэша типов и связей pokemon_type.
      * Берём фиксированный список основных типов, тянем их из API, сохраняем type и кросс-рефы.
      */
+    //  это кастомный метод инициализации, предназначенный для первичной загрузки и кэширования
+    //  данных о типах покемонов и их связях с покемонами в локальной базе данных
     override suspend fun bootstrapIndex() {
-        // 0) сетевые вызовы ВНЕ транзакции
+        println("=== BOOTSTRAP INDEX STARTED ===")
+
+        // Проверяем, нужно ли загружать типы
+        val existingTypesCount = db.pokemonDao().getTypesCount()
+        val existingRefsCount = db.pokemonDao().getCrossRefsCount()
+
+        if (existingTypesCount >= 18 && existingRefsCount > 0) {
+            println("Bootstrap already completed, skipping")
+            return
+        }
+
+        // Загружаем только недостающие данные
         val typeNames = listOf(
             "normal","fire","water","electric","grass","ice",
             "fighting","poison","ground","flying","psychic","bug",
             "rock","ghost","dragon","dark","steel","fairy"
         )
-        val typeDtos = typeNames.map { api.getType(it) } // network
+
+        println("Loading types and relationships...")
+
+        val typeDtos = typeNames.mapNotNull { typeName ->
+            try {
+                api.getType(typeName)
+            } catch (e: Exception) {
+                println("Failed to load type: $typeName")
+                null
+            }
+        }
+
         val typeEntities = typeDtos.map { TypeEntity(id = it.id, name = it.name) }
 
-        // соберём все потенциальные кросс-рефы
+        // Фильтруем связи для существующих покемонов
         val allRefs = buildList<PokemonTypeCrossRef> {
-            typeDtos.forEach { t ->
-                t.pokemon.forEach { slot ->
-                    val pid = extractIdFromUrl(slot.pokemon.url) // .../pokemon/35/
-                    add(PokemonTypeCrossRef(pokemonId = pid, typeId = t.id))
+            typeDtos.forEach { typeDto ->
+                typeDto.pokemon.forEach { pokemonSlot ->
+                    val pokemonId = extractIdFromUrl(pokemonSlot.pokemon.url)
+                    // Проверяем существование покемона
+                    if (db.pokemonDao().getPokemonById(pokemonId) != null) {
+                        add(PokemonTypeCrossRef(pokemonId = pokemonId, typeId = typeDto.id))
+                    }
                 }
             }
         }
 
         db.withTransaction {
-            // 1) сначала сохраним сами типы
+            // Добавляем только новые типы и связи
             db.pokemonDao().upsertTypes(typeEntities)
-
-            // 2) добавим связи только для уже существующих в БД покемонов
             if (allRefs.isNotEmpty()) {
-                val distinctIds = allRefs.map { it.pokemonId }.distinct()
-                val existing = mutableSetOf<Int>()
-
-                // ВАЖНО: чанк по ~900, чтобы не превысить лимит переменных SQLite
-                distinctIds.chunked(900).forEach { chunk ->
-                    existing += db.pokemonDao().existingPokemonIds(chunk)
-                }
-
-                val filtered = allRefs.filter { it.pokemonId in existing }
-                if (filtered.isNotEmpty()) {
-                    db.pokemonDao().upsertCrossRefs(filtered)
-                }
+                db.pokemonDao().upsertCrossRefs(allRefs)
             }
         }
+
+        println("=== BOOTSTRAP INDEX COMPLETED ===")
     }
+
+    // метод для проверки загрузки покемонов
+    private suspend fun ensurePokemonDataLoaded() {
+        val count = db.pokemonDao().getPokemonCount()
+        println("Pokemon in DB: $count")
+
+        if (count == 0) {
+            println("Loading initial pokemon data...")
+            loadInitialPokemonData()
+        }
+    }
+
+    private suspend fun loadInitialPokemonData() {
+        // Загружаем первую страницу покемонов
+        val page = api.getPokemonPage(limit = 100, offset = 0)
+        val entities = page.results.map {
+            val id = extractIdFromUrl(it.url)
+            PokemonEntity(id = id, name = it.name, imageUrl = officialArtworkUrl(id))
+        }
+
+        db.withTransaction {
+            db.pokemonDao().upsertAll(entities)
+        }
+        println("Loaded ${entities.size} pokemons")
+    }
+
 
     /** Живой список названий типов для экрана фильтров */
     override fun allTypesFlow(): Flow<List<String>> =

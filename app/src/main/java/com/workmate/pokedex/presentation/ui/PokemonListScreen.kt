@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -21,6 +22,41 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import coil.compose.AsyncImage
 import com.workmate.pokedex.domain.model.Pokemon
 import com.workmate.pokedex.presentation.vm.PokemonListViewModel
+
+@Composable
+private fun ActiveFiltersChip(types: List<String>, onClear: () -> Unit) {
+    if (types.isNotEmpty()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Фильтры: ", style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.width(4.dp))
+            types.forEach { type ->
+                FilterChip(
+                    selected = true,
+                    onClick = { /* Можно сделать удаление отдельного фильтра */ },
+                    label = { Text(type.replaceFirstChar { it.uppercase() }) },
+                    trailingIcon = {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Удалить фильтр",
+                            modifier = Modifier.size(16.dp)
+                        )
+                    },
+                    modifier = Modifier.padding(end = 4.dp)
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = onClear) {
+                Text("Очистить")
+            }
+        }
+        Divider()
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,6 +96,10 @@ fun PokemonListScreen(
         }
     }
 
+
+    // чтобы получить выбранные типы
+    val selectedTypes by vm.selectedTypes.collectAsState()
+
     Scaffold(
         topBar = {
             // Верхняя панель с заголовком и кнопкой перехода к фильтрам
@@ -96,6 +136,13 @@ fun PokemonListScreen(
                         .padding(12.dp),
                     placeholder = { Text("Поиск по имени…") }
                 )
+
+                // блок поиска по фильтрам
+                ActiveFiltersChip(
+                    types = selectedTypes,
+                    onClear = { vm.clearFilters() }
+                )
+
 
                 // Реакция на состояние первичной загрузки Paging (refresh)
                 when (val s = lazy.loadState.refresh) {

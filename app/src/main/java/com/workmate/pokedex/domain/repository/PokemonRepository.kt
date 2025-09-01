@@ -11,6 +11,8 @@ interface PokemonRepository {
 
     /** Первичная индексация/обновление кеша (имена + типы) */
     suspend fun bootstrapIndex()
+    // очистка таблиц
+    suspend fun clearAllData()
 
     /** Все доступные типы (для экрана фильтров) */
     fun allTypesFlow(): Flow<List<String>>
